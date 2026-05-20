@@ -7,9 +7,9 @@
 // ⚙️ MASTER CONFIGURATION (Change only this block for other schools)
 // ========================================================================
 const APP_CONFIG = {
-    fullName: "GHSS VELAMURITHANPETTAI", 
-    shortName: "GHSS VELAMURITHANPETTAI",                                           
-    scriptUrl: "https://script.google.com/macros/s/AKfycbwWlI-5iHo-lXoIeaSeHLs-jeI5sFxviEBSsJ3PS4AQJEN8ReoCG9xwpYKGJvYcMDPh/exec" 
+    fullName: "Oriental Govt Aided Hr Sec School, Kumbakonam", 
+    shortName: "Oriental",                                           
+    scriptUrl: "https://script.google.com/macros/s/AKfycbwT25MO9XnKhdqq0OXyFZGK1ccNSnGmcrhbcDi9AVldIY25-nQeRUZxn6Vxuf9gjG9ZGg/exec" 
 };
 
 const SCRIPT_URL = APP_CONFIG.scriptUrl;
