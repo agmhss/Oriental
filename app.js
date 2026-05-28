@@ -1,11 +1,11 @@
 /**
  * app.js - Advanced Timetable, Exam & Substitution Engine
- * Version: Ultimate Master Build + Human-Machine Editor + Strictly Sheet Mode
+ * Version: Ultimate Master Build + Human-Machine Editor + Master Sheet Optimizer
  */
 
 const APP_CONFIG = {
-    fullName: "GAHSS Oriental", 
-    shortName: "Oriental GAHSS ",                                           
+    fullName: "ORIENTALGAHSS", 
+    shortName: "ORIENTALGAHSS",                                           
     scriptUrl: "https://script.google.com/macros/s/AKfycbwNt55G0m6x7J7iEeMI9BonVBW6Q5U8hDGS9GS-jV6CtVky-JvkTepDVNjj_FD8QOXPJg/exec" 
 };
 const SCRIPT_URL = APP_CONFIG.scriptUrl;
@@ -326,12 +326,14 @@ window.openOptimizerModal = function() {
 
     let classData = {};
     
+    // Group assignments by class to find totals
     SCHOOL_CONFIG.assignments.forEach(req => {
         let indClasses = getIndividualClasses(req.className);
         indClasses.forEach(cls => {
             if (!classData[cls]) classData[cls] = { total: 0, subjects: {} };
             classData[cls].total += req.periodsPerWeek;
             
+            // Track specific subjects to give intelligent recommendations
             let subLabel = abbreviateSubject(req.subjectName);
             classData[cls].subjects[subLabel] = (classData[cls].subjects[subLabel] || 0) + req.periodsPerWeek;
         });
@@ -355,6 +357,7 @@ window.openOptimizerModal = function() {
             let def = 40 - data.total;
             let sug = [];
             
+            // Intelligent suggestions based on typical missing co-curriculars
             if (!data.subjects['LIB'] && !data.subjects['LIBRARY']) sug.push('Library (LIB)');
             if (!data.subjects['PET'] && !data.subjects['GAMES']) sug.push('Physical Ed (PET)');
             if (!data.subjects['DRAW']) sug.push('Drawing (DRAW)');
@@ -543,7 +546,7 @@ window.deleteCellData = function() {
     updateClassLoadUI(); 
 }
 
-// --- RENDER 1: REGULAR TIMETABLE ---
+// --- RENDER 1: REGULAR TIMETABLE (UPDATED WITH EDIT UI) ---
 function renderRegularTimetable() {
     const mainGrid = document.getElementById('mainGrid');
     const viewType = document.getElementById('viewType')?.value || 'all';
@@ -893,6 +896,8 @@ window.runCalculationEngine = function(renderGrid = true) {
     window.teacherMaxGrade = {}; 
     let tempTeacherSubjects = {}; 
 
+    let calcMode = document.getElementById('calcMode')?.value || 'hybrid';
+
     window.rawAssignmentsData.slice(1).forEach(row => {
         let teacherName = String(row[1] || '').trim(); 
         if (!teacherName) return; 
@@ -918,9 +923,19 @@ window.runCalculationEngine = function(renderGrid = true) {
                  if(!distinctClassGroup) return;
 
                  let gradeVal = getGradeValue(distinctClassGroup);
-                 
-                 // 🌟 STRICTLY UPLOADED MODE: Only use what is written in the Google Sheet
-                 let finalPeriods = parseInt(periodsVal) || 0; 
+                 let finalPeriods = 0;
+
+                 if (calcMode === 'auto') {
+                     finalPeriods = typeof SCHOOL_CONFIG.getPeriodsForActivity === 'function' ? SCHOOL_CONFIG.getPeriodsForActivity(activity, gradeVal) : 6;
+                 } else if (calcMode === 'allotted') {
+                     finalPeriods = parseInt(periodsVal) || 0; 
+                 } else {
+                     if (periodsVal.toUpperCase() === 'AUTO' || !periodsVal) {
+                        finalPeriods = typeof SCHOOL_CONFIG.getPeriodsForActivity === 'function' ? SCHOOL_CONFIG.getPeriodsForActivity(activity, gradeVal) : 6;
+                    } else {
+                        finalPeriods = parseInt(periodsVal) || 0;
+                    }
+                 }
 
                 if (finalPeriods > 0) {
                     let isCT = false;
@@ -972,62 +987,28 @@ window.runCalculationEngine = function(renderGrid = true) {
 };
 
 window.saveDutiesToCloud = async function() {
-    const mode = document.getElementById('opMode').value;
-    const selectedDate = getSelectedDateStr();
+    updateStatus("Saving Duty Counts...");
+    const selects = document.querySelectorAll('select.w-full'); 
+    let finalDutyTracker = { ...window.subDutyTracker }; 
     
-    let actionType = "";
-    let payloadData = {};
-
-    if (mode === 'substitution') {
-        updateStatus("Saving Sub Duties...");
-        const selects = document.querySelectorAll('select.w-full'); 
-        let finalDutyTracker = { ...window.subDutyTracker }; 
-        selects.forEach(select => {
-            let assignedTeacher = select.value;
-            if (assignedTeacher) {
-                finalDutyTracker[assignedTeacher] = (finalDutyTracker[assignedTeacher] || 0) + 1;
-            }
-        });
-        actionType = "updateSubTracker";
-        payloadData = finalDutyTracker;
-        window.subDutyTracker = finalDutyTracker; 
-    } 
-    else if (mode === 'exam') {
-        updateStatus("Saving Exam Duties...");
-        let finalExamTracker = { ...window.examDutyTracker };
-        let assignedTeachers = window.dailyExamTracker[selectedDate]?.[currentSession] || [];
-        
-        assignedTeachers.forEach(t => {
-            finalExamTracker[t] = (finalExamTracker[t] || 0) + 1;
-        });
-        
-        actionType = "updateExamTracker";
-        payloadData = finalExamTracker;
-        window.examDutyTracker = finalExamTracker;
-    } 
-    else {
-        alert("Save option is only available for Substitution or Exam Mode.");
-        return;
-    }
+    selects.forEach(select => {
+        let assignedTeacher = select.value;
+        if (assignedTeacher) {
+            finalDutyTracker[assignedTeacher] = (finalDutyTracker[assignedTeacher] || 0) + 1;
+        }
+    });
 
     try {
         const response = await fetch(SCRIPT_URL, {
             method: 'POST',
-            headers: { 'Content-Type': 'text/plain;charset=utf-8' },
-            body: JSON.stringify({ action: actionType, data: payloadData })
+            body: JSON.stringify({ action: "updateSubTracker", data: finalDutyTracker })
         });
-        
-        let resultText = await response.text();
-        if(resultText.includes("Success")) {
-            updateStatus("Saved Successfully!");
-            alert(`${mode.toUpperCase()} counts successfully saved to cloud ledger!`);
-        } else {
-            throw new Error(resultText);
-        }
+        await response.text();
+        updateStatus("Saved Successfully!");
+        window.subDutyTracker = finalDutyTracker; 
+        alert("Duty counts successfully saved to cloud ledger!");
     } catch (error) {
         updateStatus("Save Failed!");
-        alert("Error saving data. Please check connection.");
-        console.error("Save Error:", error);
     }
 };
 
@@ -1068,4 +1049,46 @@ window.exportPDF = function() {
                 let displayName = teacher.length > 20 ? teacher.substring(0, 18) + "..." : teacher;
                 doc.text(`${APP_CONFIG.shortName} - ${displayName}`, x + 2, y + 5);
 
-                let head = [['Day', ...teachingPeriods
+                let head = [['Day', ...teachingPeriods.map((_, i) => i + 1)]];
+                let body = [];
+                
+                daysOfWeek.forEach((day, dIdx) => {
+                    let rowData = [dayLabels[dIdx]];
+                    teachingPeriods.forEach(period => {
+                        let slot = generatedWeeklyTimetable.find(d => d.day === day && d.period === period.label && d.teacherName.replace('⭐ ', '') === teacher);
+                        if (slot) {
+                            let printSub = abbreviateSubject(slot.subjectName);
+                            let printClass = slot.className.replace(/\s+/g, '');
+                            rowData.push(`${printClass}\n${printSub}`);
+                        } else {
+                            rowData.push('-');
+                        }
+                    });
+                    body.push(rowData);
+                });
+
+                doc.autoTable({
+                    head: head, body: body, startY: y + 7, margin: { left: x + 2, bottom: 0 }, tableWidth: cW - 4, pageBreak: 'avoid', theme: 'grid',
+                    styles: { fontSize: 5.5, cellPadding: 0.8, halign: 'center', valign: 'middle', lineColor: [150, 150, 150], lineWidth: 0.1, overflow: 'linebreak' },
+                    headStyles: { fillColor: [220, 220, 220], textColor: 20, fontStyle: 'bold' },
+                    columnStyles: { 0: { fontStyle: 'bold', fillColor: [245, 245, 245], cellWidth: 8 } }
+                });
+                cardsOnPage++;
+            });
+            doc.save(`${APP_CONFIG.shortName}_All_Teacher_Cards.pdf`);
+        } else {
+            const doc = new jsPDF('l', 'mm', 'a4'); 
+            doc.setFontSize(16);
+            doc.setTextColor(30, 58, 138); 
+            doc.text(`${APP_CONFIG.shortName} Timetable - ${filterVal}`, 14, 18);
+            
+            doc.autoTable({ 
+                html: '#scheduleTable', startY: 25, theme: 'grid', 
+                styles: { fontSize: 10, cellPadding: 4, halign: 'center', valign: 'middle' },
+                headStyles: { fillColor: [41, 128, 185], textColor: 255, fontSize: 11, fontStyle: 'bold' },
+                alternateRowStyles: { fillColor: [245, 247, 250] }
+            });
+            doc.save(`${APP_CONFIG.shortName}_Schedule_${filterVal.replace(' ', '_')}.pdf`);
+        }
+    }
+};
