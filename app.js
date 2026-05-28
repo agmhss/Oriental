@@ -986,31 +986,6 @@ window.runCalculationEngine = function(renderGrid = true) {
     setTimeout(updateClassLoadUI, 500); 
 };
 
-window.saveDutiesToCloud = async function() {
-    updateStatus("Saving Duty Counts...");
-    const selects = document.querySelectorAll('select.w-full'); 
-    let finalDutyTracker = { ...window.subDutyTracker }; 
-    
-    selects.forEach(select => {
-        let assignedTeacher = select.value;
-        if (assignedTeacher) {
-            finalDutyTracker[assignedTeacher] = (finalDutyTracker[assignedTeacher] || 0) + 1;
-        }
-    });
-
-    try {
-        const response = await fetch(SCRIPT_URL, {
-            method: 'POST',
-            body: JSON.stringify({ action: "updateSubTracker", data: finalDutyTracker })
-        });
-        await response.text();
-        updateStatus("Saved Successfully!");
-        window.subDutyTracker = finalDutyTracker; 
-        alert("Duty counts successfully saved to cloud ledger!");
-    } catch (error) {
-        updateStatus("Save Failed!");
-    }
-};
 
 window.exportPDF = function() {
     const { jsPDF } = window.jspdf;
@@ -1018,6 +993,68 @@ window.exportPDF = function() {
     const selectedDate = getSelectedDateStr();
     
     if (mode === 'exam') {
+window.saveDutiesToCloud = async function() {
+    const mode = document.getElementById('opMode').value;
+    const selectedDate = getSelectedDateStr();
+    
+    let actionType = "";
+    let payloadData = {};
+
+    // 1. Substitution ஆக இருந்தால்
+    if (mode === 'substitution') {
+        updateStatus("Saving Sub Duties...");
+        const selects = document.querySelectorAll('select.w-full'); 
+        let finalDutyTracker = { ...window.subDutyTracker }; 
+        selects.forEach(select => {
+            let assignedTeacher = select.value;
+            if (assignedTeacher) {
+                finalDutyTracker[assignedTeacher] = (finalDutyTracker[assignedTeacher] || 0) + 1;
+            }
+        });
+        actionType = "updateSubTracker";
+        payloadData = finalDutyTracker;
+        window.subDutyTracker = finalDutyTracker; 
+    } 
+    // 2. Exam Duty ஆக இருந்தால்
+    else if (mode === 'exam') {
+        updateStatus("Saving Exam Duties...");
+        let finalExamTracker = { ...window.examDutyTracker };
+        let assignedTeachers = window.dailyExamTracker[selectedDate]?.[currentSession] || [];
+        
+        assignedTeachers.forEach(t => {
+            finalExamTracker[t] = (finalExamTracker[t] || 0) + 1;
+        });
+        
+        actionType = "updateExamTracker";
+        payloadData = finalExamTracker;
+        window.examDutyTracker = finalExamTracker;
+    } 
+    else {
+        alert("Save option is only available for Substitution or Exam Mode.");
+        return;
+    }
+
+    // 🌟 FIX: Accurate Error Catching & CORS fix
+    try {
+        const response = await fetch(SCRIPT_URL, {
+            method: 'POST',
+            headers: { 'Content-Type': 'text/plain;charset=utf-8' },
+            body: JSON.stringify({ action: actionType, data: payloadData })
+        });
+        
+        let resultText = await response.text();
+        if(resultText.includes("Success")) {
+            updateStatus("Saved Successfully!");
+            alert(`${mode.toUpperCase()} counts successfully saved to cloud ledger!`);
+        } else {
+            throw new Error(resultText);
+        }
+    } catch (error) {
+        updateStatus("Save Failed!");
+        alert("Error saving data. Please check connection.");
+        console.error("Save Error:", error);
+    }
+};
         const doc = new jsPDF('l', 'mm', 'a4'); 
         doc.setFontSize(14); doc.text(`${APP_CONFIG.shortName} Exam Invigilation Schedule`, 14, 15); doc.setFontSize(11); doc.text(`Date: ${selectedDate} | Session: ${currentSession}`, 14, 25); doc.save(`${APP_CONFIG.shortName}_Exam_Schedule_${selectedDate}.pdf`);
     } else if (mode === 'substitution') {
