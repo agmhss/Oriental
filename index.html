@@ -18,7 +18,7 @@
     <nav class="gradient-bg p-6 shadow-xl text-white">
         <div class="container mx-auto flex justify-between items-center">
             <div>
-                <h1 id="schoolNameDisplay" class="text-2xl md:text-4xl font-black tracking-tight uppercase">Oriental GAHSS</h1>
+                <h1 id="schoolNameDisplay" class="text-2xl md:text-4xl font-black tracking-tight uppercase">GHSS VMPT</h1>
                 <p class="text-blue-100 text-sm font-medium">Smart Timetable & Duty Engine</p>
             </div>
             <div id="statusIndicator" class="bg-blue-900/50 px-4 py-1.5 rounded-full border border-blue-400 text-xs font-bold tracking-widest">SYSTEM READY</div>
@@ -44,7 +44,7 @@
     <main class="container mx-auto px-4 py-8">
         
         <section class="glass rounded-2xl p-6 mb-8 shadow-lg border border-gray-200">
-            <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+            <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
                 
                 <div>
                     <label class="block text-xs font-bold text-gray-500 uppercase mb-2">Operation Mode</label>
@@ -52,6 +52,15 @@
                         <option value="regular">Regular Timetable</option>
                         <option value="exam">Exam Duty Mode</option>
                         <option value="substitution">Substitution Manager</option>
+                    </select>
+                </div>
+
+                <div>
+                    <label class="block text-xs font-bold text-gray-500 uppercase mb-2">Calculation Mode</label>
+                    <select id="calcMode" class="w-full p-3 bg-indigo-50 border-2 border-indigo-100 rounded-xl font-bold text-indigo-800 outline-none">
+                        <option value="hybrid">Smart (Auto + Sheet)</option>
+                        <option value="auto">Strict Auto (Rules)</option>
+                        <option value="allotted">Strict Allotted</option>
                     </select>
                 </div>
 
