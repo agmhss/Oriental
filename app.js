@@ -4,7 +4,7 @@
  */
 
 const APP_CONFIG = {
-    fullName: "ORIENTALGAHSS", 
+    fullName: "ORIENTAL GAHSS", 
     shortName: "ORIENTALGAHSS",                                           
     scriptUrl: "https://script.google.com/macros/s/AKfycbzXN3LZe1mrc2GItH6xp5O4wWOPPTNm6BzfFAY3Jsb9AaUcOa02xMiVSlVTkUFXAfhnlQ/exec" 
 };
