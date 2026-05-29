@@ -4,10 +4,9 @@
  */
 
 const APP_CONFIG = {
-    fullName: "GHSS VELAMURITHANPETTAI", 
-    shortName: "GHSS VMPT",                                           
-    // 🚨 இங்கே உங்களின் சரியான Google Script URL இருப்பதை உறுதிசெய்யவும்! 🚨
-    scriptUrl: "https://script.google.com/macros/s/AKfycbyvAwxIAjtSB5AysA1Z7E0AC1ImJFv_HGJIObs_zY5k7Lt9aNgNastU1UCuCNlZrBQQ7w/exec" 
+    fullName: "ORIENTALGAHSS", 
+    shortName: "ORIENTALGAHSS",                                           
+    scriptUrl: "https://script.google.com/macros/s/AKfycbzXN3LZe1mrc2GItH6xp5O4wWOPPTNm6BzfFAY3Jsb9AaUcOa02xMiVSlVTkUFXAfhnlQ/exec" 
 };
 const SCRIPT_URL = APP_CONFIG.scriptUrl;
 
