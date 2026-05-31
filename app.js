@@ -239,79 +239,118 @@ function updateClassLoadUI() {
 }
 
 function generateAutoTimetable() {
-    generatedWeeklyTimetable = []; 
-    let teacherAvail = {};
-    let classAvail = {};
-    let dailySubjectCount = {}; 
+    let bestTimetable = [];
+    let bestScore = -1; // To track how many periods were successfully placed
+    let bestDailyCount = {};
 
     if (!SCHOOL_CONFIG.assignments || SCHOOL_CONFIG.assignments.length === 0) return;
-
-    SCHOOL_CONFIG.assignments.sort((a, b) => {
-        let isPartTimeA = window.teacherPartTimeStatus[a.teacherName] !== 'FULL' ? 1 : 0;
-        let isPartTimeB = window.teacherPartTimeStatus[b.teacherName] !== 'FULL' ? 1 : 0;
-        if (isPartTimeA !== isPartTimeB) return isPartTimeB - isPartTimeA; 
-        return b.periodsPerWeek - a.periodsPerWeek;
-    });
 
     const teachingPeriods = SCHOOL_CONFIG.regularTimings.filter(p => p.type === 'class');
     const firstPeriod = teachingPeriods[0];
     const fnPeriodLabels = teachingPeriods.slice(0, 4).map(p => p.label);
 
-    function attemptPlacement(req, reqIndex, allowLimitBypass) {
-        let indClasses = getIndividualClasses(req.className);
-        let maxDailyAllowed = Math.max(1, Math.ceil(req.periodsPerWeek / 5));
-        let placedCount = 0;
-        let startDayIdx = reqIndex % 5; 
+    // 🌟 THE UPGRADE: Run the engine 50 times with different randomized orders
+    const MAX_ITERATIONS = 50; 
 
-        for (let i = 0; i < req.periodsPerWeek; i++) {
-            if (req.assignedCount >= req.periodsPerWeek) break; 
+    for (let iteration = 0; iteration < MAX_ITERATIONS; iteration++) {
+        let tempTimetable = [];
+        let teacherAvail = {};
+        let classAvail = {};
+        let dailySubjectCount = {};
+        let currentScore = 0;
 
-            let placed = false;
-            for (let offset = 0; offset < daysOfWeek.length; offset++) {
-                let day = daysOfWeek[(startDayIdx + offset + i) % 5];
-                let currentDayCount = dailySubjectCount[`${req.className}-${day}-${req.subjectName}`] || 0;
-                
-                if (!allowLimitBypass && currentDayCount >= maxDailyAllowed) continue; 
+        // Clone assignments to avoid modifying the original during iterations
+        let currentAssignments = JSON.parse(JSON.stringify(SCHOOL_CONFIG.assignments));
 
-                for (let period of teachingPeriods) {
-                    if (!req.isClassTeacher && period.label === firstPeriod.label) continue; 
+        // Sorting Logic: Iteration 0 uses strict logical order. Subsequent iterations use shuffling to bypass deadlocks.
+        currentAssignments.sort((a, b) => {
+            let isPartTimeA = window.teacherPartTimeStatus[a.teacherName] !== 'FULL' ? 1 : 0;
+            let isPartTimeB = window.teacherPartTimeStatus[b.teacherName] !== 'FULL' ? 1 : 0;
+            if (isPartTimeA !== isPartTimeB) return isPartTimeB - isPartTimeA; 
+            
+            if (iteration === 0) {
+                return b.periodsPerWeek - a.periodsPerWeek; // Standard Greedy logic
+            } else {
+                return Math.random() - 0.5; // Randomized Shuffling logic
+            }
+        });
 
-                    let isFN = fnPeriodLabels.includes(period.label);
-                    let sessionType = isFN ? 'FN' : 'AN';
+        function attemptPlacement(req, allowLimitBypass) {
+            let indClasses = getIndividualClasses(req.className);
+            let maxDailyAllowed = Math.max(1, Math.ceil(req.periodsPerWeek / 5));
 
-                    if (!isPartTimeTeacherAvailable(req.teacherName, sessionType)) continue;
+            // To avoid predictable starting points, randomize the starting day on shuffled iterations
+            let startDayIdx = iteration === 0 ? 0 : Math.floor(Math.random() * 5); 
 
-                    let timeKey = `${day}-${period.label}`;
-                    let isClassBusy = indClasses.some(cls => classAvail[cls]?.[timeKey]);
-                    let isTeacherBusy = teacherAvail[req.teacherName]?.[timeKey];
+            for (let i = 0; i < req.periodsPerWeek; i++) {
+                if (req.assignedCount >= req.periodsPerWeek) break; 
+
+                let placed = false;
+                for (let offset = 0; offset < daysOfWeek.length; offset++) {
+                    let day = daysOfWeek[(startDayIdx + offset + i) % 5];
+                    let currentDayCount = dailySubjectCount[`${req.className}-${day}-${req.subjectName}`] || 0;
                     
-                    if (!isTeacherBusy && !isClassBusy) {
-                        generatedWeeklyTimetable.push({
-                            day: day, period: period.label, time: `${period.start} - ${period.end}`,
-                            className: req.className, subjectName: req.subjectName, teacherName: req.teacherName
-                        });
+                    if (!allowLimitBypass && currentDayCount >= maxDailyAllowed) continue; 
+
+                    // Optionally shuffle periods to find hidden slots
+                    let periodsToTry = [...teachingPeriods];
+                    if (iteration > 0) periodsToTry.sort(() => Math.random() - 0.5);
+
+                    for (let period of periodsToTry) {
+                        if (!req.isClassTeacher && period.label === firstPeriod.label) continue; 
+
+                        let isFN = fnPeriodLabels.includes(period.label);
+                        let sessionType = isFN ? 'FN' : 'AN';
+
+                        if (!isPartTimeTeacherAvailable(req.teacherName, sessionType)) continue;
+
+                        let timeKey = `${day}-${period.label}`;
+                        let isClassBusy = indClasses.some(cls => classAvail[cls]?.[timeKey]);
+                        let isTeacherBusy = teacherAvail[req.teacherName]?.[timeKey];
                         
-                        if(!teacherAvail[req.teacherName]) teacherAvail[req.teacherName] = {};
-                        teacherAvail[req.teacherName][timeKey] = true;
-                        
-                        indClasses.forEach(cls => {
-                            if(!classAvail[cls]) classAvail[cls] = {};
-                            classAvail[cls][timeKey] = true;
-                        });
-                        
-                        dailySubjectCount[`${req.className}-${day}-${req.subjectName}`] = currentDayCount + 1;
-                        req.assignedCount++;
-                        placedCount++;
-                        placed = true;
-                        break; 
+                        if (!isTeacherBusy && !isClassBusy) {
+                            tempTimetable.push({
+                                day: day, period: period.label, time: `${period.start} - ${period.end}`,
+                                className: req.className, subjectName: req.subjectName, teacherName: req.teacherName
+                            });
+                            
+                            if(!teacherAvail[req.teacherName]) teacherAvail[req.teacherName] = {};
+                            teacherAvail[req.teacherName][timeKey] = true;
+                            
+                            indClasses.forEach(cls => {
+                                if(!classAvail[cls]) classAvail[cls] = {};
+                                classAvail[cls][timeKey] = true;
+                            });
+                            
+                            dailySubjectCount[`${req.className}-${day}-${req.subjectName}`] = currentDayCount + 1;
+                            req.assignedCount++;
+                            currentScore++;
+                            placed = true;
+                            break; 
+                        }
                     }
+                    if (placed) break; 
                 }
-                if (placed) break; 
             }
         }
-        return placedCount;
+
+        currentAssignments.forEach(req => req.assignedCount = 0);
+        currentAssignments.forEach(req => attemptPlacement(req, false));
+        currentAssignments.forEach(req => {
+            if (req.assignedCount < req.periodsPerWeek) attemptPlacement(req, true);
+        });
+
+        // Track the best performing iteration
+        if (currentScore > bestScore) {
+            bestScore = currentScore;
+            bestTimetable = JSON.parse(JSON.stringify(tempTimetable));
+            bestDailyCount = JSON.parse(JSON.stringify(dailySubjectCount));
+        }
     }
 
+    // Apply the winning iteration to the global state
+    generatedWeeklyTimetable = bestTimetable;
+}
     SCHOOL_CONFIG.assignments.forEach(req => req.assignedCount = 0);
     SCHOOL_CONFIG.assignments.forEach((req, reqIndex) => attemptPlacement(req, reqIndex, false));
     SCHOOL_CONFIG.assignments.forEach((req, reqIndex) => {
